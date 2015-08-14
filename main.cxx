@@ -3,71 +3,77 @@
 #include "FunctorWrapper.h"
 #include <time.h> /* clock_t, clock, CLOCKS_PER_SEC */
 #include <cmath>
-
-int return_1() { return 1; }
-
-int return_2(int& check) { return check + 5; }
-double return_3(double& check) { return check + 10; }
-double return_4(double& check, double& check1) { return check * check1 + 10; }
+#include <sstream>
+#include "Wing.h"
+#include "GlobalStrategies.h"
+#include "Orientation.h"
 
 int main() {
-   int check = 5;
-   Loki::Functor<int, LOKI_TYPELIST_1(int&)> return_2_func(&return_2);
-   Loki::Functor<double, LOKI_TYPELIST_1(double&)> return_3_func(&return_3);
-   Loki::Functor<double, LOKI_TYPELIST_2(double&, double&)> return_4_func(
-       &return_4);
 
-   check = 7;
-   std::cout << "sizeof Node: " << sizeof(tmb::Node<Loki::Functor<double> >)
-             << std::endl;
-   std::cout << "sizeof vector: " << sizeof(std::vector<double>) << std::endl;
-   Loki::SmartPtr<tmb::Node<double> > test_node = new tmb::Node<double>("test");
-   std::vector<tmb::Node<double> > int_nodes, test_nodes, int_nodes_1,
-       int_nodes_2, int_nodes_3;
-   {
-      int_nodes_1.resize(1000000, tmb::Node<double>("int_node_1"));
-      int_nodes.resize(1000000, tmb::Node<double>("int_node"));
-      int_nodes_2.resize(1000000, tmb::Node<double>("int_node_2"));
-      int_nodes_3.resize(1000000, tmb::Node<double>("int_node_3"));
-      test_nodes.resize(1000000, tmb::Node<double>("test_node"));
-   }
-   for (size_t i = 0; i < 1000000; ++i)
-      int_nodes[i].addStrategy<double&>(
-          &return_3_func, &int_nodes_1[i], "return_3");
-   for (size_t i = 0; i < 1000000; ++i)
-      test_nodes[i].addStrategy<double&, double&>(&return_4_func,
-                                                  &int_nodes_2[i],
-                                                  &int_nodes_3[i],
-                                                  "return_4_with_2_3");
-   for (size_t i = 0; i < 1000000; ++i)
-      test_nodes[i].addStrategy<double&, double&>(
-          &return_4_func, &int_nodes[i], &int_nodes_1[i], "return_4");
-   clock_t t;
-   double sum = 0;
-   std::vector<double*> test_node_ptr(1000000, NULL);
-   for (size_t i = 0; i < 1000000; ++i) {
-      test_node_ptr[i] = test_nodes[i].get_pointer();
-   }
-   for (size_t i = 1; i < 1000000; ++i)
-      int_nodes_1[i].set(5.0);
-   for (size_t i = 0; i < 1000000; ++i)
-      int_nodes[i].set(5.0);
-   t = clock();
-   for (unsigned count = 0; count < 1000; ++count) {
-      for (size_t i = 0; i < 1000000; ++i) {
-         sum += *(test_node_ptr[i]);
-      }
-   }
-   t = clock() - t;
-   std::cout << "It took " << ((float)t) / CLOCKS_PER_SEC << std::endl;
-   std::cout << "sum: " << sum << std::endl;
-#ifdef DEBUG
-   tmb::draw_dot_graph(&(test_nodes[0]), 5);
-#endif
-   int_nodes_1.clear();
-   int_nodes.clear();
-   int_nodes_2.clear();
-   int_nodes_3.clear();
-   test_nodes.clear();
+   tmb::Node<double> total_length("total_length");
+   tmb::Node<double> height("height");
+   tmb::Node<double> width("width");
+
+   tmb::Node<double> angle_deg("angle_deg");
+   tmb::Node<double> angle_rad("angle_rad");
+   tmb::Node<double> pitch_deg("pitch_deg");
+   tmb::Node<double> pitch_rad("pitch_rad");
+   tmb::Node<double> roll_deg("roll_deg");
+   tmb::Node<double> roll_rad("roll_rad");
+   tmb::Node<double> yaw_deg("yaw_deg");
+   tmb::Node<double> yaw_rad("yaw_rad");
+
+   Wing wing_vertical("wing_vertical");
+   Wing wing_horizontal("wing_horizontal");
+
+   wing_vertical.  set_length(1.0);
+   wing_vertical.  set_height(0.015);
+   wing_vertical.  set_span  (0.2);
+   wing_horizontal.set_length(1.0);
+   wing_horizontal.set_height(0.015);
+   wing_horizontal.set_span  (0.2);
+
+   Orientation orientation("orientation");
+
+   angle_rad.addStrategy(&functor_degree2radiants,
+                         &angle_deg,
+                         "degree2radiants");
+
+
+   total_length.addStrategy(&functor_sum2double,
+                            &(wing_horizontal._length),
+                            &(wing_vertical  ._length),
+                            "sum2double");
+
+   wing_horizontal._length.addStrategy(&Wing::functor_length_w2,
+                                       &angle_rad,
+                                       &width,
+                                       "length_w2");
+
+   wing_horizontal._normal_x.addStrategy(&functor_cos,
+                                         &angle_rad,
+                                         "normal_x=cos(alpha)");
+
+   wing_horizontal._normal_y.addStrategy(&functor_sin,
+                                         &angle_rad,
+                                         "normal_x=sin(alpha)");
+
+   wing_vertical.  _length.addStrategy(&Wing::functor_length_w1,
+                                             &angle_rad,
+                                             &height,
+                                             &width,
+                                             "length_w1");
+
+   height.set(1.0);
+   width.set(0.3);
+   angle_deg.set(45.0);
+   orientation._pitch_deg.set(10.0);
+
+   std::cout<<wing_vertical<<std::endl;
+   std::cout<<wing_horizontal<<std::endl;
+   std::cout<<orientation<<std::endl;
+   std::cout<<"Total length: "<<total_length.get()<<std::endl;
+
+   tmb::draw_dot_graph(&(total_length), "test_node.dot", 5);
    return 0;
 }
